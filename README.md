@@ -1,7 +1,7 @@
-#Tutorial: Implementing TSMA for Unbalanced Data in R
+# Tutorial: Implementing TSMA for Unbalanced Data in R
 This tutorial guides you through implementing the two-stage sampling aggregation ($\mbox{TSMA}$), 
 designed to handle unbalanced datasets. The $\mbox{TSMA}$ framework 
-incorporates bagging concepts, resampling techniques, and machine learning techniques 
+incorporates bagging concepts, resampling techniques, and machine-learning techniques 
 aimed at significantly improving the accuracy of predictive models.
 
 ## Data Preparation
@@ -22,3 +22,7 @@ aimed at significantly improving the accuracy of predictive models.
 ## Conclusion
 
 ## Additional Notes
+
+## Here is the example for our novel TSMA model [CAMRSA](https://lim648.github.io/TSMA_Tutorial.html)
+
+
