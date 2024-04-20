@@ -156,14 +156,8 @@ for(j in 1:100){
                                                   size = round(0.90 * nrow(unbalanced_disease_train))), ]
   
   # Stage 2: Resampling
-  # Extract features (excluding 'case_control') for resampling
-  x_un <- train_sample[,-which(names(train_sample) %in% c("case_control"))]
-  
-  # Extract the target variable ('case_control')
-  y_un <- train_sample$case_control
-  
   # Apply under-sampling to balance the bootstrap sample
-  under_caret <- downSample(x_un, y_un, yname = "case_control")
+  under_caret <- ovun.sample(case_control ~ ., data=train_sample, method = "both", p=0.5)$data
   
   # Model Training: Train an Elastic Net model on the downsampled data
   elastic_under_tsma <- train(
