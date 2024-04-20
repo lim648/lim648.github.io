@@ -469,76 +469,77 @@ aimed at significantly improving the accuracy of predictive models.</p>
 <span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a></span>
 <span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="co"># Load necessary libraries for the tutorial</span></span>
 <span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">library</span>(caret)        <span class="co"># Load the caret package for data splitting, training, and performance evaluation</span></span>
-<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="fu">library</span>(ROCR)         <span class="co"># Load the ROCR package for ROC analysis and performance metrics</span></span>
-<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a><span class="fu">library</span>(tidyverse)    <span class="co"># Load the tidyverse package for data manipulation and visualization</span></span>
-<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a><span class="fu">library</span>(mltools)      <span class="co"># Load the mltools package for machine learning tools and utilities</span></span>
-<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="fu">library</span>(ROSE)         <span class="co"># Load the ROSE package for undersampling</span></span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a><span class="fu">library</span>(ROCR)         <span class="co"># Load the ROCR package for ROC analysis and performance metrics</span></span>
+<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a><span class="fu">library</span>(tidyverse)    <span class="co"># Load the tidyverse package for data manipulation and visualization</span></span>
+<span id="cb1-9"><a href="#cb1-9" tabindex="-1"></a><span class="fu">library</span>(mltools)      <span class="co"># Load the mltools package for machine learning tools and utilities</span></span>
 <span id="cb1-10"><a href="#cb1-10" tabindex="-1"></a></span>
 <span id="cb1-11"><a href="#cb1-11" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" tabindex="-1"></a><span class="co"># Define a function &#39;metrics&#39; to calculate various evaluation metrics</span></span>
-<span id="cb1-13"><a href="#cb1-13" tabindex="-1"></a>metrics <span class="ot">&lt;-</span> <span class="cf">function</span>(pred.class, pred.prob, ref) {</span>
-<span id="cb1-14"><a href="#cb1-14" tabindex="-1"></a>  <span class="co"># pred.class: Predicted class labels</span></span>
-<span id="cb1-15"><a href="#cb1-15" tabindex="-1"></a>  <span class="co"># pred.prob: Predicted probabilities for the positive class</span></span>
-<span id="cb1-16"><a href="#cb1-16" tabindex="-1"></a>  <span class="co"># ref: Actual class labels (reference)</span></span>
-<span id="cb1-17"><a href="#cb1-17" tabindex="-1"></a>  </span>
-<span id="cb1-18"><a href="#cb1-18" tabindex="-1"></a>  <span class="co"># Calculate the confusion matrix using the caret package</span></span>
-<span id="cb1-19"><a href="#cb1-19" tabindex="-1"></a>  cm <span class="ot">&lt;-</span> caret<span class="sc">::</span><span class="fu">confusionMatrix</span>(<span class="at">data =</span> pred.class, <span class="at">reference =</span> ref, <span class="at">positive =</span> <span class="st">&#39;1&#39;</span>)</span>
-<span id="cb1-20"><a href="#cb1-20" tabindex="-1"></a>  </span>
-<span id="cb1-21"><a href="#cb1-21" tabindex="-1"></a>  <span class="co"># Extract accuracy from the confusion matrix</span></span>
-<span id="cb1-22"><a href="#cb1-22" tabindex="-1"></a>  accuracy <span class="ot">=</span> cm<span class="sc">$</span>overall[[<span class="st">&#39;Accuracy&#39;</span>]]</span>
-<span id="cb1-23"><a href="#cb1-23" tabindex="-1"></a>  </span>
-<span id="cb1-24"><a href="#cb1-24" tabindex="-1"></a>  <span class="co"># Extract precision from the confusion matrix</span></span>
-<span id="cb1-25"><a href="#cb1-25" tabindex="-1"></a>  precision <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;Precision&#39;</span>]]</span>
-<span id="cb1-26"><a href="#cb1-26" tabindex="-1"></a>  </span>
-<span id="cb1-27"><a href="#cb1-27" tabindex="-1"></a>  <span class="co"># Extract recall from the confusion matrix</span></span>
-<span id="cb1-28"><a href="#cb1-28" tabindex="-1"></a>  recall <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;Recall&#39;</span>]]</span>
-<span id="cb1-29"><a href="#cb1-29" tabindex="-1"></a>  </span>
-<span id="cb1-30"><a href="#cb1-30" tabindex="-1"></a>  <span class="co"># Extract specificity from the confusion matrix </span></span>
-<span id="cb1-31"><a href="#cb1-31" tabindex="-1"></a>  specificity <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;Specificity&#39;</span>]]</span>
-<span id="cb1-32"><a href="#cb1-32" tabindex="-1"></a>  </span>
-<span id="cb1-33"><a href="#cb1-33" tabindex="-1"></a>  <span class="co"># Calculate the balanced accuracy </span></span>
-<span id="cb1-34"><a href="#cb1-34" tabindex="-1"></a>  balanced_acc <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;Balanced Accuracy&#39;</span>]]</span>
-<span id="cb1-35"><a href="#cb1-35" tabindex="-1"></a>  </span>
-<span id="cb1-36"><a href="#cb1-36" tabindex="-1"></a>  <span class="co"># Calculate the F1 measure </span></span>
-<span id="cb1-37"><a href="#cb1-37" tabindex="-1"></a>  f1_measure <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;F1&#39;</span>]]</span>
-<span id="cb1-38"><a href="#cb1-38" tabindex="-1"></a>  </span>
-<span id="cb1-39"><a href="#cb1-39" tabindex="-1"></a>  <span class="co"># Create a prediction object for ROC analysis</span></span>
-<span id="cb1-40"><a href="#cb1-40" tabindex="-1"></a>  pred_model <span class="ot">&lt;-</span> <span class="fu">prediction</span>(pred.prob, ref)</span>
-<span id="cb1-41"><a href="#cb1-41" tabindex="-1"></a>  </span>
-<span id="cb1-42"><a href="#cb1-42" tabindex="-1"></a>  <span class="co"># Calculatevthe Area Under the Precision-Recall Curve (AUCPR) </span></span>
-<span id="cb1-43"><a href="#cb1-43" tabindex="-1"></a>  aucpr <span class="ot">&lt;-</span> <span class="fu">performance</span>(pred_model, <span class="at">measure =</span> <span class="st">&quot;aucpr&quot;</span>)<span class="sc">@</span>y.values[[<span class="dv">1</span>]]</span>
-<span id="cb1-44"><a href="#cb1-44" tabindex="-1"></a>  </span>
-<span id="cb1-45"><a href="#cb1-45" tabindex="-1"></a>  <span class="co"># Calculate Cohen&#39;s Kappa </span></span>
-<span id="cb1-46"><a href="#cb1-46" tabindex="-1"></a>  kappa <span class="ot">&lt;-</span> cm<span class="sc">$</span>overall[[<span class="st">&#39;Kappa&#39;</span>]]</span>
-<span id="cb1-47"><a href="#cb1-47" tabindex="-1"></a>  </span>
-<span id="cb1-48"><a href="#cb1-48" tabindex="-1"></a>  <span class="co"># Calculate and round the Area Under the Receiver Operating Characteristic (AUROC) </span></span>
-<span id="cb1-49"><a href="#cb1-49" tabindex="-1"></a>  auroc <span class="ot">&lt;-</span> <span class="fu">performance</span>(pred_model, <span class="at">measure =</span> <span class="st">&quot;auc&quot;</span>)<span class="sc">@</span>y.values[[<span class="dv">1</span>]]</span>
-<span id="cb1-50"><a href="#cb1-50" tabindex="-1"></a>  </span>
-<span id="cb1-51"><a href="#cb1-51" tabindex="-1"></a>  <span class="co"># Calculate Matthews Correlation Coefficient (MCC)</span></span>
-<span id="cb1-52"><a href="#cb1-52" tabindex="-1"></a>  mcc <span class="ot">&lt;-</span> <span class="fu">mcc</span>(pred.class, ref)</span>
-<span id="cb1-53"><a href="#cb1-53" tabindex="-1"></a>  </span>
-<span id="cb1-54"><a href="#cb1-54" tabindex="-1"></a>  <span class="co"># Calculate the geometric mean of recall and specificity</span></span>
-<span id="cb1-55"><a href="#cb1-55" tabindex="-1"></a>  g_mean1 <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(recall <span class="sc">*</span> specificity)</span>
-<span id="cb1-56"><a href="#cb1-56" tabindex="-1"></a>  </span>
-<span id="cb1-57"><a href="#cb1-57" tabindex="-1"></a>  <span class="co"># Calculate the geometric mean of recall and precision</span></span>
-<span id="cb1-58"><a href="#cb1-58" tabindex="-1"></a>  g_mean2 <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(recall <span class="sc">*</span> precision)</span>
-<span id="cb1-59"><a href="#cb1-59" tabindex="-1"></a>  </span>
-<span id="cb1-60"><a href="#cb1-60" tabindex="-1"></a>  <span class="co"># Compile all the calculated metrics into a data frame</span></span>
-<span id="cb1-61"><a href="#cb1-61" tabindex="-1"></a>  output <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">accuracy =</span> accuracy, <span class="at">precision =</span> precision, <span class="at">recall =</span> recall,</span>
-<span id="cb1-62"><a href="#cb1-62" tabindex="-1"></a>                       <span class="at">specificity =</span> specificity, <span class="at">balanced_acc =</span> balanced_acc, </span>
-<span id="cb1-63"><a href="#cb1-63" tabindex="-1"></a>                       <span class="at">f1_measure =</span> f1_measure, <span class="at">aucpr =</span> aucpr, <span class="at">kappa =</span> kappa,</span>
-<span id="cb1-64"><a href="#cb1-64" tabindex="-1"></a>                       <span class="at">auroc =</span> auroc, <span class="at">mcc =</span> mcc, <span class="at">g_mean1 =</span> g_mean1, <span class="at">g_mean2 =</span> g_mean2)</span>
-<span id="cb1-65"><a href="#cb1-65" tabindex="-1"></a>  </span>
-<span id="cb1-66"><a href="#cb1-66" tabindex="-1"></a>  <span class="co"># Return the data frame with all metrics</span></span>
-<span id="cb1-67"><a href="#cb1-67" tabindex="-1"></a>  <span class="fu">return</span>(output)</span>
-<span id="cb1-68"><a href="#cb1-68" tabindex="-1"></a>}</span></code></pre></div>
+<span id="cb1-12"><a href="#cb1-12" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" tabindex="-1"></a><span class="co"># Define a function &#39;metrics&#39; to calculate various evaluation metrics</span></span>
+<span id="cb1-14"><a href="#cb1-14" tabindex="-1"></a>metrics <span class="ot">&lt;-</span> <span class="cf">function</span>(pred.class, pred.prob, ref) {</span>
+<span id="cb1-15"><a href="#cb1-15" tabindex="-1"></a>  <span class="co"># pred.class: Predicted class labels</span></span>
+<span id="cb1-16"><a href="#cb1-16" tabindex="-1"></a>  <span class="co"># pred.prob: Predicted probabilities for the positive class</span></span>
+<span id="cb1-17"><a href="#cb1-17" tabindex="-1"></a>  <span class="co"># ref: Actual class labels (reference)</span></span>
+<span id="cb1-18"><a href="#cb1-18" tabindex="-1"></a>  </span>
+<span id="cb1-19"><a href="#cb1-19" tabindex="-1"></a>  <span class="co"># Calculate the confusion matrix using the caret package</span></span>
+<span id="cb1-20"><a href="#cb1-20" tabindex="-1"></a>  cm <span class="ot">&lt;-</span> caret<span class="sc">::</span><span class="fu">confusionMatrix</span>(<span class="at">data =</span> pred.class, <span class="at">reference =</span> ref, <span class="at">positive =</span> <span class="st">&#39;1&#39;</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" tabindex="-1"></a>  </span>
+<span id="cb1-22"><a href="#cb1-22" tabindex="-1"></a>  <span class="co"># Extract accuracy from the confusion matrix</span></span>
+<span id="cb1-23"><a href="#cb1-23" tabindex="-1"></a>  accuracy <span class="ot">=</span> cm<span class="sc">$</span>overall[[<span class="st">&#39;Accuracy&#39;</span>]]</span>
+<span id="cb1-24"><a href="#cb1-24" tabindex="-1"></a>  </span>
+<span id="cb1-25"><a href="#cb1-25" tabindex="-1"></a>  <span class="co"># Extract precision from the confusion matrix</span></span>
+<span id="cb1-26"><a href="#cb1-26" tabindex="-1"></a>  precision <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;Precision&#39;</span>]]</span>
+<span id="cb1-27"><a href="#cb1-27" tabindex="-1"></a>  </span>
+<span id="cb1-28"><a href="#cb1-28" tabindex="-1"></a>  <span class="co"># Extract recall from the confusion matrix</span></span>
+<span id="cb1-29"><a href="#cb1-29" tabindex="-1"></a>  recall <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;Recall&#39;</span>]]</span>
+<span id="cb1-30"><a href="#cb1-30" tabindex="-1"></a>  </span>
+<span id="cb1-31"><a href="#cb1-31" tabindex="-1"></a>  <span class="co"># Extract specificity from the confusion matrix </span></span>
+<span id="cb1-32"><a href="#cb1-32" tabindex="-1"></a>  specificity <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;Specificity&#39;</span>]]</span>
+<span id="cb1-33"><a href="#cb1-33" tabindex="-1"></a>  </span>
+<span id="cb1-34"><a href="#cb1-34" tabindex="-1"></a>  <span class="co"># Calculate the balanced accuracy </span></span>
+<span id="cb1-35"><a href="#cb1-35" tabindex="-1"></a>  balanced_acc <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;Balanced Accuracy&#39;</span>]]</span>
+<span id="cb1-36"><a href="#cb1-36" tabindex="-1"></a>  </span>
+<span id="cb1-37"><a href="#cb1-37" tabindex="-1"></a>  <span class="co"># Calculate the F1 measure </span></span>
+<span id="cb1-38"><a href="#cb1-38" tabindex="-1"></a>  f1_measure <span class="ot">=</span> cm<span class="sc">$</span>byClass[[<span class="st">&#39;F1&#39;</span>]]</span>
+<span id="cb1-39"><a href="#cb1-39" tabindex="-1"></a>  </span>
+<span id="cb1-40"><a href="#cb1-40" tabindex="-1"></a>  <span class="co"># Create a prediction object for ROC analysis</span></span>
+<span id="cb1-41"><a href="#cb1-41" tabindex="-1"></a>  pred_model <span class="ot">&lt;-</span> <span class="fu">prediction</span>(pred.prob, ref)</span>
+<span id="cb1-42"><a href="#cb1-42" tabindex="-1"></a>  </span>
+<span id="cb1-43"><a href="#cb1-43" tabindex="-1"></a>  <span class="co"># Calculatevthe Area Under the Precision-Recall Curve (AUCPR) </span></span>
+<span id="cb1-44"><a href="#cb1-44" tabindex="-1"></a>  aucpr <span class="ot">&lt;-</span> <span class="fu">performance</span>(pred_model, <span class="at">measure =</span> <span class="st">&quot;aucpr&quot;</span>)<span class="sc">@</span>y.values[[<span class="dv">1</span>]]</span>
+<span id="cb1-45"><a href="#cb1-45" tabindex="-1"></a>  </span>
+<span id="cb1-46"><a href="#cb1-46" tabindex="-1"></a>  <span class="co"># Calculate Cohen&#39;s Kappa </span></span>
+<span id="cb1-47"><a href="#cb1-47" tabindex="-1"></a>  kappa <span class="ot">&lt;-</span> cm<span class="sc">$</span>overall[[<span class="st">&#39;Kappa&#39;</span>]]</span>
+<span id="cb1-48"><a href="#cb1-48" tabindex="-1"></a>  </span>
+<span id="cb1-49"><a href="#cb1-49" tabindex="-1"></a>  <span class="co"># Calculate and round the Area Under the Receiver Operating Characteristic (AUROC) </span></span>
+<span id="cb1-50"><a href="#cb1-50" tabindex="-1"></a>  auroc <span class="ot">&lt;-</span> <span class="fu">performance</span>(pred_model, <span class="at">measure =</span> <span class="st">&quot;auc&quot;</span>)<span class="sc">@</span>y.values[[<span class="dv">1</span>]]</span>
+<span id="cb1-51"><a href="#cb1-51" tabindex="-1"></a>  </span>
+<span id="cb1-52"><a href="#cb1-52" tabindex="-1"></a>  <span class="co"># Calculate Matthews Correlation Coefficient (MCC)</span></span>
+<span id="cb1-53"><a href="#cb1-53" tabindex="-1"></a>  mcc <span class="ot">&lt;-</span> <span class="fu">mcc</span>(pred.class, ref)</span>
+<span id="cb1-54"><a href="#cb1-54" tabindex="-1"></a>  </span>
+<span id="cb1-55"><a href="#cb1-55" tabindex="-1"></a>  <span class="co"># Calculate the geometric mean of recall and specificity</span></span>
+<span id="cb1-56"><a href="#cb1-56" tabindex="-1"></a>  g_mean1 <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(recall <span class="sc">*</span> specificity)</span>
+<span id="cb1-57"><a href="#cb1-57" tabindex="-1"></a>  </span>
+<span id="cb1-58"><a href="#cb1-58" tabindex="-1"></a>  <span class="co"># Calculate the geometric mean of recall and precision</span></span>
+<span id="cb1-59"><a href="#cb1-59" tabindex="-1"></a>  g_mean2 <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(recall <span class="sc">*</span> precision)</span>
+<span id="cb1-60"><a href="#cb1-60" tabindex="-1"></a>  </span>
+<span id="cb1-61"><a href="#cb1-61" tabindex="-1"></a>  <span class="co"># Compile all the calculated metrics into a data frame</span></span>
+<span id="cb1-62"><a href="#cb1-62" tabindex="-1"></a>  output <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">accuracy =</span> accuracy, <span class="at">precision =</span> precision, <span class="at">recall =</span> recall,</span>
+<span id="cb1-63"><a href="#cb1-63" tabindex="-1"></a>                       <span class="at">specificity =</span> specificity, <span class="at">balanced_acc =</span> balanced_acc, </span>
+<span id="cb1-64"><a href="#cb1-64" tabindex="-1"></a>                       <span class="at">f1_measure =</span> f1_measure, <span class="at">aucpr =</span> aucpr, <span class="at">kappa =</span> kappa,</span>
+<span id="cb1-65"><a href="#cb1-65" tabindex="-1"></a>                       <span class="at">auroc =</span> auroc, <span class="at">mcc =</span> mcc, <span class="at">g_mean1 =</span> g_mean1, <span class="at">g_mean2 =</span> g_mean2)</span>
+<span id="cb1-66"><a href="#cb1-66" tabindex="-1"></a>  </span>
+<span id="cb1-67"><a href="#cb1-67" tabindex="-1"></a>  <span class="co"># Return the data frame with all metrics</span></span>
+<span id="cb1-68"><a href="#cb1-68" tabindex="-1"></a>  <span class="fu">return</span>(output)</span>
+<span id="cb1-69"><a href="#cb1-69" tabindex="-1"></a>}</span></code></pre></div>
 </div>
 <div id="data-preparation" class="section level1" number="2">
 <h1><span class="header-section-number">2</span> Data Preparation</h1>
 <div id="loading-the-data" class="section level2" number="2.1">
 <h2><span class="header-section-number">2.1</span> Loading the Data</h2>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># This will read the &#39;unbalanced_disease&#39; data into the environment</span></span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>unbalanced_disease <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="st">&quot;~/Documents/Data/unbalanced_disease.rds&quot;</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>unbalanced_disease <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="st">&quot;~/Documents/camrsa/Data/unbalanced_disease.rds&quot;</span>)</span>
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a></span>
 <span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co"># Display the first 5 rows and 6 columns of the loaded dataset for a quick overview</span></span>
 <span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>unbalanced_disease[<span class="dv">1</span><span class="sc">:</span><span class="dv">12</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">7</span>]</span></code></pre></div>
@@ -608,32 +609,26 @@ Alone</h2>
 <div id="elastic-net-with-under-resampling-techniques" class="section level2" number="3.2">
 <h2><span class="header-section-number">3.2</span> Elastic Net with
 Under resampling techniques</h2>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Extract predictor variables (features) for the model by removing the &#39;case_control&#39; column from the training dataset</span></span>
-<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>x_un_el <span class="ot">&lt;-</span> unbalanced_disease_train[,<span class="sc">-</span><span class="fu">which</span>(<span class="fu">names</span>(unbalanced_disease_train) <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">&quot;case_control&quot;</span>))]</span>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="co"># Apply under-sampling to balance the dataset, ensuring equal representation of each class in &#39;case_control&#39;</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>under_caret_el <span class="ot">&lt;-</span> <span class="fu">ovun.sample</span>(case_control <span class="sc">~</span> ., <span class="at">data =</span> unbalanced_disease_train , <span class="at">method =</span> <span class="st">&quot;both&quot;</span>, <span class="at">p=</span><span class="fl">0.5</span>)<span class="sc">$</span>data</span>
 <span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co"># Extract the target variable (&#39;case_control&#39;) from the training dataset</span></span>
-<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>y_un_el <span class="ot">&lt;-</span> unbalanced_disease_train<span class="sc">$</span>case_control</span>
-<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a></span>
-<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="co"># Apply under-sampling to balance the dataset, ensuring equal representation of each class in &#39;case_control&#39;</span></span>
-<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>under_caret_el <span class="ot">&lt;-</span> <span class="fu">downSample</span>(x_un_el, y_un_el, <span class="at">yname =</span> <span class="st">&quot;case_control&quot;</span>)</span>
-<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a></span>
-<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a><span class="co"># Train an Elastic Net model using the balanced dataset</span></span>
-<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a><span class="co"># - Specify the model formula where &#39;case_control&#39; is the response variable and all other columns are predictors</span></span>
-<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a><span class="co"># - Set cross-validation control using &#39;cv&#39; with 5 folds for model validation</span></span>
-<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a><span class="co"># - Define the length of the grid for hyperparameter tuning (tuneLength = 10)</span></span>
-<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>elastic_under_el <span class="ot">&lt;-</span> <span class="fu">train</span>(</span>
-<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>  case_control <span class="sc">~</span> ., <span class="at">data =</span> under_caret_el, <span class="at">method =</span> <span class="st">&quot;glmnet&quot;</span>,</span>
-<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>  <span class="at">trControl =</span> <span class="fu">trainControl</span>(<span class="st">&quot;cv&quot;</span>, <span class="at">number =</span> <span class="dv">5</span>),</span>
-<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>  <span class="at">tuneLength =</span> <span class="dv">10</span>)</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co"># Train an Elastic Net model using the balanced dataset</span></span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="co"># - Specify the model formula where &#39;case_control&#39; is the response variable and all other columns are predictors</span></span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a><span class="co"># - Set cross-validation control using &#39;cv&#39; with 5 folds for model validation</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="co"># - Define the length of the grid for hyperparameter tuning (tuneLength = 10)</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>elastic_under_el <span class="ot">&lt;-</span> <span class="fu">train</span>(</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a>  case_control <span class="sc">~</span> ., <span class="at">data =</span> under_caret_el, <span class="at">method =</span> <span class="st">&quot;glmnet&quot;</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>  <span class="at">trControl =</span> <span class="fu">trainControl</span>(<span class="st">&quot;cv&quot;</span>, <span class="at">number =</span> <span class="dv">5</span>),</span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>  <span class="at">tuneLength =</span> <span class="dv">10</span>)</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a></span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a><span class="co"># Use the trained Elastic Net model with under-sampling to make predictions on the test set</span></span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>predictions_el <span class="ot">&lt;-</span> elastic_under_el <span class="sc">%&gt;%</span> <span class="fu">predict</span>(unbalanced_disease_test)</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a><span class="co"># Predict the probabilities using the Elastic Net model and select the probabilities of the positive class</span></span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>predict_el <span class="ot">&lt;-</span> <span class="fu">predict</span>(elastic_under_el, unbalanced_disease_test, <span class="at">type =</span> <span class="st">&quot;prob&quot;</span>)[,<span class="dv">2</span>]</span>
 <span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a></span>
-<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a><span class="co"># Use the trained Elastic Net model with under-sampling to make predictions on the test set</span></span>
-<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>predictions_el <span class="ot">&lt;-</span> elastic_under_el <span class="sc">%&gt;%</span> <span class="fu">predict</span>(unbalanced_disease_test)</span>
-<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a></span>
-<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a><span class="co"># Predict the probabilities using the Elastic Net model and select the probabilities of the positive class</span></span>
-<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a>predict_el <span class="ot">&lt;-</span> <span class="fu">predict</span>(elastic_under_el, unbalanced_disease_test, <span class="at">type =</span> <span class="st">&quot;prob&quot;</span>)[,<span class="dv">2</span>]</span>
-<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a></span>
-<span id="cb8-25"><a href="#cb8-25" tabindex="-1"></a><span class="co"># Evaluate the model using various metrics</span></span>
-<span id="cb8-26"><a href="#cb8-26" tabindex="-1"></a>un_el_downcaret <span class="ot">&lt;-</span> <span class="fu">metrics</span>(predictions_el, predict_el, unbalanced_disease_test<span class="sc">$</span>case_control)</span></code></pre></div>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a><span class="co"># Evaluate the model using various metrics</span></span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a>un_el_downcaret <span class="ot">&lt;-</span> <span class="fu">metrics</span>(predictions_el, predict_el, unbalanced_disease_test<span class="sc">$</span>case_control)</span></code></pre></div>
 </div>
 <div id="mboxtsma_texten" class="section level2" number="3.3">
 <h2><span class="header-section-number">3.3</span> <span class="math inline">\(\mbox{TSMA}_{\text{EN}}\)</span></h2>
@@ -652,37 +647,31 @@ Under resampling techniques</h2>
 <span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>                                                  <span class="at">size =</span> <span class="fu">round</span>(<span class="fl">0.90</span> <span class="sc">*</span> <span class="fu">nrow</span>(unbalanced_disease_train))), ]</span>
 <span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>  </span>
 <span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a>  <span class="co"># Stage 2: Resampling</span></span>
-<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a>  <span class="co"># Extract features (excluding &#39;case_control&#39;) for resampling</span></span>
-<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a>  x_un <span class="ot">&lt;-</span> train_sample[,<span class="sc">-</span><span class="fu">which</span>(<span class="fu">names</span>(train_sample) <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">&quot;case_control&quot;</span>))]</span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a>  <span class="co"># Apply under-sampling to balance the bootstrap sample</span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a>  under_caret <span class="ot">&lt;-</span> <span class="fu">ovun.sample</span>(case_control <span class="sc">~</span> ., <span class="at">data =</span> train_sample , <span class="at">method =</span> <span class="st">&quot;both&quot;</span>, <span class="at">p=</span><span class="fl">0.5</span>)<span class="sc">$</span>data</span>
 <span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a>  </span>
-<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>  <span class="co"># Extract the target variable (&#39;case_control&#39;)</span></span>
-<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a>  y_un <span class="ot">&lt;-</span> train_sample<span class="sc">$</span>case_control</span>
-<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a>  </span>
-<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a>  <span class="co"># Apply under-sampling to balance the bootstrap sample</span></span>
-<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>  under_caret <span class="ot">&lt;-</span> <span class="fu">downSample</span>(x_un, y_un, <span class="at">yname =</span> <span class="st">&quot;case_control&quot;</span>)</span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>  <span class="co"># Model Training: Train an Elastic Net model on the downsampled data</span></span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a>  elastic_under_tsma <span class="ot">&lt;-</span> <span class="fu">train</span>(</span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a>    case_control <span class="sc">~</span> ., <span class="at">data =</span> under_caret, <span class="at">method =</span> <span class="st">&quot;glmnet&quot;</span>,</span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a>    <span class="at">trControl =</span> <span class="fu">trainControl</span>(<span class="st">&quot;cv&quot;</span>, <span class="at">number =</span> <span class="dv">5</span>),</span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>    <span class="at">tuneLength =</span> <span class="dv">10</span>)</span>
 <span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a>  </span>
-<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a>  <span class="co"># Model Training: Train an Elastic Net model on the downsampled data</span></span>
-<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a>  elastic_under_tsma <span class="ot">&lt;-</span> <span class="fu">train</span>(</span>
-<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a>    case_control <span class="sc">~</span> ., <span class="at">data =</span> under_caret, <span class="at">method =</span> <span class="st">&quot;glmnet&quot;</span>,</span>
-<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a>    <span class="at">trControl =</span> <span class="fu">trainControl</span>(<span class="st">&quot;cv&quot;</span>, <span class="at">number =</span> <span class="dv">5</span>),</span>
-<span id="cb9-26"><a href="#cb9-26" tabindex="-1"></a>    <span class="at">tuneLength =</span> <span class="dv">10</span>)</span>
-<span id="cb9-27"><a href="#cb9-27" tabindex="-1"></a>  </span>
-<span id="cb9-28"><a href="#cb9-28" tabindex="-1"></a>  <span class="co"># Predict probabilities for the test set using the trained model</span></span>
-<span id="cb9-29"><a href="#cb9-29" tabindex="-1"></a>  predicted_tsma <span class="ot">&lt;-</span> <span class="fu">predict</span>(elastic_under_tsma, unbalanced_disease_test, <span class="at">type =</span> <span class="st">&quot;prob&quot;</span>)[,<span class="dv">2</span>]</span>
-<span id="cb9-30"><a href="#cb9-30" tabindex="-1"></a>  </span>
-<span id="cb9-31"><a href="#cb9-31" tabindex="-1"></a>  <span class="co"># Store the predicted probabilities in the matrix</span></span>
-<span id="cb9-32"><a href="#cb9-32" tabindex="-1"></a>  estimated_probabilities_tsma[, j] <span class="ot">&lt;-</span> predicted_tsma</span>
-<span id="cb9-33"><a href="#cb9-33" tabindex="-1"></a>}</span>
-<span id="cb9-34"><a href="#cb9-34" tabindex="-1"></a></span>
-<span id="cb9-35"><a href="#cb9-35" tabindex="-1"></a><span class="co"># Aggregation and Prediction</span></span>
-<span id="cb9-36"><a href="#cb9-36" tabindex="-1"></a><span class="co"># Calculate the mean of the estimated probabilities for each observation</span></span>
-<span id="cb9-37"><a href="#cb9-37" tabindex="-1"></a>pred.prob_tsma <span class="ot">&lt;-</span> <span class="fu">rowMeans</span>(estimated_probabilities_tsma, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb9-38"><a href="#cb9-38" tabindex="-1"></a></span>
-<span id="cb9-39"><a href="#cb9-39" tabindex="-1"></a><span class="co"># Convert the mean probabilities to class predictions based on a threshold of 0.5</span></span>
-<span id="cb9-40"><a href="#cb9-40" tabindex="-1"></a>pred.class_tsma <span class="ot">&lt;-</span> <span class="fu">as.factor</span>(<span class="fu">ifelse</span>(pred.prob_tsma <span class="sc">&gt;</span> <span class="fl">0.5</span>, <span class="dv">1</span>, <span class="dv">0</span>))</span>
-<span id="cb9-41"><a href="#cb9-41" tabindex="-1"></a></span>
-<span id="cb9-42"><a href="#cb9-42" tabindex="-1"></a><span class="co"># Evaluate the tsma model using various metrics</span></span>
-<span id="cb9-43"><a href="#cb9-43" tabindex="-1"></a>un_el_tsma <span class="ot">&lt;-</span> <span class="fu">metrics</span>(pred.class_tsma, pred.prob_tsma, unbalanced_disease_test<span class="sc">$</span>case_control)</span></code></pre></div>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a>  <span class="co"># Predict probabilities for the test set using the trained model</span></span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a>  predicted_tsma <span class="ot">&lt;-</span> <span class="fu">predict</span>(elastic_under_tsma, unbalanced_disease_test, <span class="at">type =</span> <span class="st">&quot;prob&quot;</span>)[,<span class="dv">2</span>]</span>
+<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a>  </span>
+<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a>  <span class="co"># Store the predicted probabilities in the matrix</span></span>
+<span id="cb9-26"><a href="#cb9-26" tabindex="-1"></a>  estimated_probabilities_tsma[, j] <span class="ot">&lt;-</span> predicted_tsma</span>
+<span id="cb9-27"><a href="#cb9-27" tabindex="-1"></a>}</span>
+<span id="cb9-28"><a href="#cb9-28" tabindex="-1"></a></span>
+<span id="cb9-29"><a href="#cb9-29" tabindex="-1"></a><span class="co"># Aggregation and Prediction</span></span>
+<span id="cb9-30"><a href="#cb9-30" tabindex="-1"></a><span class="co"># Calculate the mean of the estimated probabilities for each observation</span></span>
+<span id="cb9-31"><a href="#cb9-31" tabindex="-1"></a>pred.prob_tsma <span class="ot">&lt;-</span> <span class="fu">rowMeans</span>(estimated_probabilities_tsma, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb9-32"><a href="#cb9-32" tabindex="-1"></a></span>
+<span id="cb9-33"><a href="#cb9-33" tabindex="-1"></a><span class="co"># Convert the mean probabilities to class predictions based on a threshold of 0.5</span></span>
+<span id="cb9-34"><a href="#cb9-34" tabindex="-1"></a>pred.class_tsma <span class="ot">&lt;-</span> <span class="fu">as.factor</span>(<span class="fu">ifelse</span>(pred.prob_tsma <span class="sc">&gt;</span> <span class="fl">0.5</span>, <span class="dv">1</span>, <span class="dv">0</span>))</span>
+<span id="cb9-35"><a href="#cb9-35" tabindex="-1"></a></span>
+<span id="cb9-36"><a href="#cb9-36" tabindex="-1"></a><span class="co"># Evaluate the tsma model using various metrics</span></span>
+<span id="cb9-37"><a href="#cb9-37" tabindex="-1"></a>un_el_tsma <span class="ot">&lt;-</span> <span class="fu">metrics</span>(pred.class_tsma, pred.prob_tsma, unbalanced_disease_test<span class="sc">$</span>case_control)</span></code></pre></div>
 </div>
 </div>
 <div id="result" class="section level1" number="4">
@@ -699,18 +688,18 @@ Under resampling techniques</h2>
 <span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a></span>
 <span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a><span class="co"># Display the comparison of performance metrics between the two models</span></span>
 <span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a>compare_result</span></code></pre></div>
-<pre><code>##                Accuracy Precision Recall Specificity Balanced Accuracy
-## EN Alone      0.9651899        NA      0   1.0000000         0.5000000
-## EN with Under 0.9525316 0.4230769      1   0.9508197         0.9754098
-## TSMA-EN       0.9968354 0.9166667      1   0.9967213         0.9983607
-##                F1 score    AUC-PR Cohen&#39;s Kappa   AUC-ROC       MCC   G Mean1
-## EN Alone             NA 0.9648164     0.0000000 0.9976155 0.0000000 0.0000000
-## EN with Under 0.5945946 0.8573767     0.5737410 0.9940387 0.6342475 0.9750998
-## TSMA-EN       0.9565217 0.9962121     0.9548829 0.9997019 0.9558563 0.9983593
+<pre><code>##                Accuracy Precision    Recall Specificity Balanced Accuracy
+## EN Alone      0.9651899        NA 0.0000000   1.0000000         0.5000000
+## EN with Under 0.9905063       0.9 0.8181818   0.9967213         0.9074516
+## TSMA-EN       0.9905063       0.9 0.8181818   0.9967213         0.9074516
+##                F1 score    AUC-PR Cohen&#39;s Kappa   AUC-ROC       MCC G Mean1
+## EN Alone             NA 0.9648164     0.0000000 0.9976155 0.0000000 0.00000
+## EN with Under 0.8571429 0.9103142     0.8522444 0.9949329 0.8532799 0.90305
+## TSMA-EN       0.8571429 0.9649679     0.8522444 0.9973174 0.8532799 0.90305
 ##                 G Mean2
 ## EN Alone             NA
-## EN with Under 0.6504436
-## TSMA-EN       0.9574271</code></pre>
+## EN with Under 0.8581163
+## TSMA-EN       0.8581163</code></pre>
 <p>From the results, we observe a comparison between three models: EN
 Alone, EN combined with UNDER and our proposed model <span class="math inline">\(\mbox{TSMA}_{\text{EN}}\)</span>, which
 incorporates EN combined with UNDER into our two-stage sampling
