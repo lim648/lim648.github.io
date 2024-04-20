@@ -115,14 +115,8 @@ el <- metrics(predictions, predict, unbalanced_disease_test$case_control)
 
 ############## Elastic Net with Under Resampling Techniques ####################
 
-# Extract predictor variables (features) for the model by removing the 'case_control' column from the training dataset
-x_un_el <- unbalanced_disease_train[,-which(names(unbalanced_disease_train) %in% c("case_control"))]
-
-# Extract the target variable ('case_control') from the training dataset
-y_un_el <- unbalanced_disease_train$case_control
-
 # Apply under-sampling to balance the dataset, ensuring equal representation of each class in 'case_control'
-under_caret_el <- downSample(x_un_el, y_un_el, yname = "case_control")
+under_caret_el <- ovun.sample(case_control ~ ., data=unbalanced_disease_train, method = "both", p=0.5)$data
 
 # Train an Elastic Net model using the balanced dataset
 # - Specify the model formula where 'case_control' is the response variable and all other columns are predictors
