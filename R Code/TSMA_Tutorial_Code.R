@@ -1,196 +1,272 @@
-# TSMA_Tutorial
+#!/usr/bin/env Rscript
 
-# Remove all objects from the current workspace to start with a clean environment
-rm(list = ls())
+# Reproducible TSMA tutorial analysis ---------------------------------------
+#
+# This script analyzes only the synthetic dataset created by
+# R Code/generate_synthetic_data.R. It never reads restricted cohort data.
 
-# Load necessary libraries for the tutorial
-library(caret)        # Load the caret package for data splitting, training, and performance evaluation
-library(ROCR)         # Load the ROCR package for ROC analysis and performance metrics
-library(tidyverse)    # Load the tidyverse package for data manipulation and visualization
-library(mltools)      # Load the mltools package for machine learning tools and utilities
+required_packages <- c("glmnet", "ROCR")
+missing_packages <- required_packages[
+  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
+]
+if (length(missing_packages)) {
+  stop(
+    "Install the required packages before running this tutorial: ",
+    paste(missing_packages, collapse = ", ")
+  )
+}
 
+analysis_seed <- 20261028L
+test_fraction <- 0.20
+n_bootstrap <- as.integer(Sys.getenv("TSMA_BOOTSTRAPS", "50"))
+if (is.na(n_bootstrap) || n_bootstrap < 10L) {
+  stop("TSMA_BOOTSTRAPS must be an integer of at least 10.")
+}
 
+data_path <- file.path("Data", "synthetic_unbalanced.rds")
+results_dir <- "results"
+results_path <- file.path(results_dir, "tutorial_metrics.csv")
+metadata_path <- file.path(results_dir, "run_metadata.txt")
 
-# Define a function 'metrics' to calculate various evaluation metrics
-metrics <- function(pred.class, pred.prob, ref) {
-  # pred.class: Predicted class labels
-  # pred.prob: Predicted probabilities for the positive class
-  # ref: Actual class labels (reference)
-  
-  # Calculate the confusion matrix using the caret package
-  cm <- caret::confusionMatrix(data = pred.class, reference = ref, positive = '1')
-  
-  # Extract accuracy from the confusion matrix
-  accuracy = cm$overall[['Accuracy']]
-  
-  # Extract precision from the confusion matrix
-  precision = cm$byClass[['Precision']]
-  
-  # Extract recall from the confusion matrix
-  recall = cm$byClass[['Recall']]
-  
-  # Extract specificity from the confusion matrix 
-  specificity = cm$byClass[['Specificity']]
-  
-  # Calculate the balanced accuracy 
-  balanced_acc = cm$byClass[['Balanced Accuracy']]
-  
-  # Calculate the F1 measure 
-  f1_measure = cm$byClass[['F1']]
-  
-  # Create a prediction object for ROC analysis
-  pred_model <- prediction(pred.prob, ref)
-  
-  # Calculatevthe Area Under the Precision-Recall Curve (AUCPR) 
-  aucpr <- performance(pred_model, measure = "aucpr")@y.values[[1]]
-  
-  # Calculate Cohen's Kappa 
-  kappa <- cm$overall[['Kappa']]
-  
-  # Calculate and round the Area Under the Receiver Operating Characteristic (AUROC) 
-  auroc <- performance(pred_model, measure = "auc")@y.values[[1]]
-  
-  # Calculate Matthews Correlation Coefficient (MCC)
-  mcc <- mcc(pred.class, ref)
-  
-  # Calculate the geometric mean of recall and specificity
+if (!file.exists(data_path)) {
+  stop(
+    "Synthetic data not found. Run `Rscript 'R Code/generate_synthetic_data.R'` first."
+  )
+}
+
+safe_divide <- function(numerator, denominator) {
+  if (is.na(denominator) || denominator == 0) return(NA_real_)
+  numerator / denominator
+}
+
+stratified_split <- function(y, train_fraction, seed) {
+  set.seed(seed)
+  selected <- unlist(lapply(levels(y), function(level) {
+    indices <- which(y == level)
+    sample(indices, size = floor(train_fraction * length(indices)))
+  }), use.names = FALSE)
+  sort(selected)
+}
+
+downsample_training_data <- function(data, seed) {
+  class_counts <- table(data$case_control)
+  target_n <- min(class_counts)
+  if (target_n < 5L) stop("Too few observations in a class for down-sampling.")
+
+  set.seed(seed)
+  selected <- unlist(lapply(levels(data$case_control), function(level) {
+    sample(which(data$case_control == level), target_n, replace = FALSE)
+  }), use.names = FALSE)
+  data[sample(selected), , drop = FALSE]
+}
+
+make_model_matrix <- function(data) {
+  predictors <- data[setdiff(names(data), "case_control")]
+  stats::model.matrix(~ . - 1, data = predictors)
+}
+
+make_stratified_folds <- function(y, n_folds, seed) {
+  set.seed(seed)
+  fold_id <- integer(length(y))
+  for (class_value in sort(unique(y))) {
+    indices <- which(y == class_value)
+    fold_id[indices] <- sample(rep(seq_len(n_folds), length.out = length(indices)))
+  }
+  fold_id
+}
+
+fit_elastic_net <- function(data, seed) {
+  x <- make_model_matrix(data)
+  y <- as.integer(data$case_control == "1")
+  smallest_class <- min(table(y))
+  n_folds <- min(5L, as.integer(smallest_class))
+  if (n_folds < 3L) stop("At least three observations per class are required.")
+
+  fit <- glmnet::cv.glmnet(
+    x = x,
+    y = y,
+    family = "binomial",
+    alpha = 0.5,
+    foldid = make_stratified_folds(y, n_folds, seed),
+    type.measure = "deviance",
+    standardize = TRUE
+  )
+
+  list(model = fit, feature_names = colnames(x))
+}
+
+predict_probabilities <- function(fit, new_data) {
+  x <- make_model_matrix(new_data)
+  missing_features <- setdiff(fit$feature_names, colnames(x))
+  if (length(missing_features)) {
+    padding <- matrix(
+      0,
+      nrow = nrow(x),
+      ncol = length(missing_features),
+      dimnames = list(NULL, missing_features)
+    )
+    x <- cbind(x, padding)
+  }
+  x <- x[, fit$feature_names, drop = FALSE]
+  as.numeric(stats::predict(fit$model, newx = x, s = "lambda.min", type = "response"))
+}
+
+calculate_metrics <- function(actual, probability, threshold = 0.5) {
+  actual <- factor(actual, levels = c("0", "1"))
+  predicted <- factor(ifelse(probability >= threshold, "1", "0"), levels = c("0", "1"))
+
+  tp <- sum(predicted == "1" & actual == "1")
+  fp <- sum(predicted == "1" & actual == "0")
+  tn <- sum(predicted == "0" & actual == "0")
+  fn <- sum(predicted == "0" & actual == "1")
+
+  accuracy <- safe_divide(tp + tn, tp + fp + tn + fn)
+  precision <- safe_divide(tp, tp + fp)
+  recall <- safe_divide(tp, tp + fn)
+  specificity <- safe_divide(tn, tn + fp)
+  balanced_accuracy <- mean(c(recall, specificity), na.rm = TRUE)
+  f1 <- safe_divide(2 * precision * recall, precision + recall)
   g_mean1 <- sqrt(recall * specificity)
-  
-  # Calculate the geometric mean of recall and precision
-  g_mean2 <- sqrt(recall * precision)
-  
-  # Compile all the calculated metrics into a data frame
-  output <- data.frame(accuracy = accuracy, precision = precision, recall = recall,
-                       specificity = specificity, balanced_acc = balanced_acc, 
-                       f1_measure = f1_measure, aucpr = aucpr, kappa = kappa,
-                       auroc = auroc, mcc = mcc, g_mean1 = g_mean1, g_mean2 = g_mean2)
-  
-  # Round all numeric data in the data frame to 4 decimal places
-  output <- round(output, 4)
-  
-  # Return the data frame with all metrics rounded to 4 digits
-  return(output)
+  g_mean2 <- sqrt(precision * recall)
+
+  expected_agreement <- safe_divide(
+    (tp + fp) * (tp + fn) + (fn + tn) * (fp + tn),
+    (tp + fp + tn + fn)^2
+  )
+  kappa <- safe_divide(accuracy - expected_agreement, 1 - expected_agreement)
+  mcc <- safe_divide(
+    tp * tn - fp * fn,
+    sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+  )
+
+  rocr_prediction <- ROCR::prediction(probability, as.integer(actual == "1"))
+  auroc <- ROCR::performance(rocr_prediction, "auc")@y.values[[1]]
+  aucpr <- ROCR::performance(rocr_prediction, "aucpr")@y.values[[1]]
+
+  data.frame(
+    Accuracy = accuracy,
+    Precision = precision,
+    Recall = recall,
+    Specificity = specificity,
+    Balanced_Accuracy = balanced_accuracy,
+    F1 = f1,
+    AUC_PR = aucpr,
+    Cohens_Kappa = kappa,
+    AUC_ROC = auroc,
+    MCC = mcc,
+    G_Mean1 = g_mean1,
+    G_Mean2 = g_mean2,
+    stringsAsFactors = FALSE
+  )
 }
 
-# Load the dataset from an RDS file
-# This will read the 'unbalanced_disease' data into the environment
-unbalanced_disease <- readRDS("~/Documents/camrsa/Data/unbalanced_disease.rds")
+data <- readRDS(data_path)
+required_columns <- c("case_control", "sex")
+if (!all(required_columns %in% names(data))) {
+  stop("The synthetic dataset is missing required columns.")
+}
+if (!identical(levels(data$case_control), c("0", "1"))) {
+  stop("case_control must be a factor with levels c('0', '1').")
+}
+if (anyNA(data)) stop("The tutorial dataset must not contain missing values.")
 
-# Display the first 5 rows and 6 columns of the loaded dataset for a quick overview
-unbalanced_disease[1:5, 1:7]
+train_indices <- stratified_split(
+  data$case_control,
+  train_fraction = 1 - test_fraction,
+  seed = analysis_seed
+)
+train_data <- data[train_indices, , drop = FALSE]
+test_data <- data[-train_indices, , drop = FALSE]
 
-# Create a frequency table for the 'case_control' column to understand its distribution
-table(unbalanced_disease$case_control)
+# 1. Elastic net trained on the original imbalanced training data.
+fit_alone <- fit_elastic_net(train_data, analysis_seed + 1L)
+prob_alone <- predict_probabilities(fit_alone, test_data)
 
-# Data Splitting
+# 2. Elastic net trained once after genuine random under-sampling.
+under_data <- downsample_training_data(train_data, analysis_seed + 2L)
+fit_under <- fit_elastic_net(under_data, analysis_seed + 3L)
+prob_under <- predict_probabilities(fit_under, test_data)
 
-# Set seed for reproducibility
-set.seed(123)
-# Create indices for a training set containing 80% of the data, ensuring the proportion of 'case_control' is maintained
-train.rows <- createDataPartition(y = unbalanced_disease$case_control, p = 0.8, list = FALSE)
+# 3. TSMA: bootstrap with replacement, under-sample each bootstrap sample,
+#    fit an elastic net, and average held-out probabilities.
+tsma_probabilities <- matrix(
+  NA_real_,
+  nrow = nrow(test_data),
+  ncol = n_bootstrap
+)
+failure_messages <- character()
 
-# Subset the dataset to create a training set using the indices, comprising 80% of the original data
-unbalanced_disease_train <- unbalanced_disease[train.rows,]
+for (bootstrap_id in seq_len(n_bootstrap)) {
+  bootstrap_seed <- analysis_seed + 1000L + bootstrap_id
+  set.seed(bootstrap_seed)
+  bootstrap_indices <- sample(
+    seq_len(nrow(train_data)),
+    size = nrow(train_data),
+    replace = TRUE
+  )
+  bootstrap_data <- train_data[bootstrap_indices, , drop = FALSE]
 
-# Create a testing set with the remaining 20% of the data not included in the training set
-unbalanced_disease_test <- unbalanced_disease[-train.rows,]
+  result <- tryCatch({
+    balanced_bootstrap <- downsample_training_data(
+      bootstrap_data,
+      seed = bootstrap_seed + 10000L
+    )
+    fit <- fit_elastic_net(balanced_bootstrap, bootstrap_seed + 20000L)
+    predict_probabilities(fit, test_data)
+  }, error = function(error) {
+    failure_messages <<- c(
+      failure_messages,
+      sprintf("bootstrap %d: %s", bootstrap_id, conditionMessage(error))
+    )
+    rep(NA_real_, nrow(test_data))
+  })
 
-# Model Training
-############################## Elastic Net Alone ###############################
-# Train an Elastic Net model
-elastic <- train(
-  case_control ~ ., data = unbalanced_disease_train, method = "glmnet",
-  trControl = trainControl("cv", number = 5), # Set up cross-validation with 5 folds
-  tuneLength = 10) # Specify the length of the tuning parameter grid
-
-# Use the trained Elastic Net model to make predictions on the test dataset
-predictions <- predict(elastic, unbalanced_disease_test)
-
-# Predict the probabilities of the positive class for the test dataset using the Elastic Net model
-predict <- predict(elastic, unbalanced_disease_test, type = "prob")[,2]
-
-# Calculate various performance metrics (like accuracy, precision, recall, etc.) 
-# for the Elastic Net model using the predicted classes and probabilities
-el <- metrics(predictions, predict, unbalanced_disease_test$case_control)
-
-############## Elastic Net with Under Resampling Techniques ####################
-
-# Apply under-sampling to balance the dataset, ensuring equal representation of each class in 'case_control'
-under_caret_el <- ovun.sample(case_control ~ ., data=unbalanced_disease_train, method = "both", p=0.5)$data
-
-# Train an Elastic Net model using the balanced dataset
-# - Specify the model formula where 'case_control' is the response variable and all other columns are predictors
-# - Use 'glmnet' as the method for Elastic Net
-# - Set cross-validation control using 'cv' with 5 folds for model validation
-# - Define the length of the grid for hyperparameter tuning (tuneLength = 10)
-elastic_under_el <- train(
-  case_control ~ ., data = under_caret_el, method = "glmnet",
-  trControl = trainControl("cv", number = 5),
-  tuneLength = 10)
-
-# Use the trained Elastic Net model with under-sampling to make predictions on the test set
-predictions_el <- elastic_under_el %>% predict(unbalanced_disease_test)
-
-# Predict the probabilities using the Elastic Net model and select the probabilities of the positive class
-predict_el <- predict(elastic_under_el, unbalanced_disease_test, type = "prob")[,2]
-
-# Evaluate the model using various metrics
-un_el_downcaret <- metrics(predictions_el, predict_el, unbalanced_disease_test$case_control)
-
-####################################### TSMA_EN ####################################
-# Prepare for the Aggregation step
-# Initialize a matrix to store the estimated probabilities for each bootstrap sample
-estimated_probabilities_tsma <- matrix(NA, nrow = nrow(unbalanced_disease_test), ncol = 100)
-
-# Iterate over 100 bootstrap samples
-for(j in 1:100){
-  # Stage 1: Bootstrap Samples
-  # Create a bootstrap sample from the training dataset (90% of the training data)
-  train_sample <- unbalanced_disease_train[sample(nrow(unbalanced_disease_train), 
-                                                  size = round(0.90 * nrow(unbalanced_disease_train))), ]
-  
-  # Stage 2: Resampling
-  # Apply under-sampling to balance the bootstrap sample
-  under_caret <- ovun.sample(case_control ~ ., data=train_sample, method = "both", p=0.5)$data
-  
-  # Model Training: Train an Elastic Net model on the downsampled data
-  elastic_under_tsma <- train(
-    case_control ~ ., data = under_caret, method = "glmnet",
-    trControl = trainControl("cv", number = 5),
-    tuneLength = 10)
-  
-  # Predict probabilities for the test set using the trained model
-  predicted_tsma <- predict(elastic_under_tsma, unbalanced_disease_test, type = "prob")[,2]
-  
-  # Store the predicted probabilities in the matrix
-  estimated_probabilities_tsma[, j] <- predicted_tsma
+  tsma_probabilities[, bootstrap_id] <- result
 }
 
-# Aggregation and Prediction
-# Calculate the mean of the estimated probabilities for each observation
-pred.prob_tsma <- rowMeans(estimated_probabilities_tsma, na.rm = TRUE)
+successful_bootstraps <- sum(colSums(is.finite(tsma_probabilities)) == nrow(test_data))
+minimum_successes <- max(10L, ceiling(0.8 * n_bootstrap))
+if (successful_bootstraps < minimum_successes) {
+  stop(
+    "Only ", successful_bootstraps, " of ", n_bootstrap,
+    " bootstrap models succeeded; at least ", minimum_successes, " are required."
+  )
+}
+prob_tsma <- rowMeans(tsma_probabilities, na.rm = TRUE)
 
-# Convert the mean probabilities to class predictions based on a threshold of 0.5
-pred.class_tsma <- as.factor(ifelse(pred.prob_tsma > 0.5, 1, 0))
+results <- rbind(
+  cbind(Method = "EN alone", calculate_metrics(test_data$case_control, prob_alone)),
+  cbind(Method = "EN with UNDER", calculate_metrics(test_data$case_control, prob_under)),
+  cbind(Method = "TSMA-EN", calculate_metrics(test_data$case_control, prob_tsma))
+)
 
-# Evaluate the tsma model using various metrics
-un_el_tsma <- metrics(pred.class_tsma, pred.prob_tsma, unbalanced_disease_test$case_control)
+dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
+utils::write.csv(results, results_path, row.names = FALSE, na = "NA")
 
+metadata <- c(
+  "This analysis uses a fully synthetic dataset and no restricted cohort records.",
+  sprintf("Analysis seed: %d", analysis_seed),
+  sprintf("Rows: %d", nrow(data)),
+  sprintf("Predictors: %d", ncol(data) - 1L),
+  sprintf("Observed positive prevalence: %.4f", mean(data$case_control == "1")),
+  sprintf("Train rows: %d", nrow(train_data)),
+  sprintf("Test rows: %d", nrow(test_data)),
+  sprintf("Requested TSMA bootstrap models: %d", n_bootstrap),
+  sprintf("Successful TSMA bootstrap models: %d", successful_bootstraps),
+  sprintf("Failed TSMA bootstrap models: %d", length(failure_messages)),
+  sprintf("R version: %s", R.version.string),
+  sprintf("glmnet version: %s", as.character(utils::packageVersion("glmnet"))),
+  sprintf("ROCR version: %s", as.character(utils::packageVersion("ROCR"))),
+  sprintf("Synthetic data MD5: %s", unname(tools::md5sum(data_path)))
+)
+if (length(failure_messages)) {
+  metadata <- c(metadata, "Failure messages:", failure_messages)
+}
+writeLines(metadata, metadata_path)
 
-
-# Result
-# Combine the results from the two models (Elastic Net with undersampling and TSMA-EN) into a single data frame
-compare_result <- rbind(el, un_el_downcaret, un_el_tsma)
-
-# Rename the columns of the resulting data frame for clarity
-colnames(compare_result) = c("Accuracy", "Precision", "Recall", "Specificity", "Balanced Accuracy",
-                             "F1 score", "AUC-PR", "Cohen's Kappa", "AUC-ROC", "MCC", "G Mean1", "G Mean2")
-
-# Assign descriptive row names to identify each model's results
-rownames(compare_result) = c("EN Alone", "EN with Under", "TSMA-EN")
-
-# Display the comparison of performance metrics between the two models
-compare_result
-
-
-
+print_data <- results
+numeric_columns <- vapply(print_data, is.numeric, logical(1))
+print_data[numeric_columns] <- lapply(print_data[numeric_columns], round, digits = 4)
+print(print_data, row.names = FALSE)
+cat("\nResults written to", results_path, "\n")
+cat("Run metadata written to", metadata_path, "\n")

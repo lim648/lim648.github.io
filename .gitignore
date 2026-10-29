@@ -1,0 +1,10 @@
+.Rhistory
+.RData
+.Rproj.user/
+_freeze/
+.quarto/
+
+# Never commit restricted or real individual-level data.
+Data/*real*.rds
+Data/*restricted*.rds
+Data/*emerge*.rds

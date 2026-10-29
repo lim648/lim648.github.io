@@ -1,0 +1,14 @@
+This analysis uses a fully synthetic dataset and no restricted cohort records.
+Analysis seed: 20261028
+Rows: 2500
+Predictors: 31
+Observed positive prevalence: 0.0468
+Train rows: 1999
+Test rows: 501
+Requested TSMA bootstrap models: 50
+Successful TSMA bootstrap models: 50
+Failed TSMA bootstrap models: 0
+R version: R version 4.5.3 (2026-03-11)
+glmnet version: 4.1.10
+ROCR version: 1.0.12
+Synthetic data MD5: 114577767ea2a8ddde31e99f5ef7a87d
