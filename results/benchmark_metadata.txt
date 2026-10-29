@@ -1,0 +1,6 @@
+Prespecified benchmark seeds: 20261101 through 20261112 inclusive.
+Benchmark TSMA bootstrap models per seed: 30
+Primary seed-selection metrics: F1 and AUC-PR.
+Selection rule: minimum standardized absolute distance from the median TSMA-minus-UNDER deltas.
+Representative generation seed: 20261107
+No seed was removed after results were observed.

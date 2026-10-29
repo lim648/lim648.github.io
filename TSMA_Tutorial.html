@@ -3078,8 +3078,10 @@ vertical-align: -.125em;
   <li><a href="#scope-and-data-provenance" id="toc-scope-and-data-provenance" class="nav-link active" data-scroll-target="#scope-and-data-provenance">Scope and data provenance</a></li>
   <li><a href="#reproduce-the-tutorial" id="toc-reproduce-the-tutorial" class="nav-link" data-scroll-target="#reproduce-the-tutorial">Reproduce the tutorial</a></li>
   <li><a href="#synthetic-example-data" id="toc-synthetic-example-data" class="nav-link" data-scroll-target="#synthetic-example-data">Synthetic example data</a></li>
+  <li><a href="#protection-against-favorable-seed-selection" id="toc-protection-against-favorable-seed-selection" class="nav-link" data-scroll-target="#protection-against-favorable-seed-selection">Protection against favorable-seed selection</a></li>
   <li><a href="#methods" id="toc-methods" class="nav-link" data-scroll-target="#methods">Methods</a></li>
-  <li><a href="#results" id="toc-results" class="nav-link" data-scroll-target="#results">Results</a></li>
+  <li><a href="#representative-seed-results" id="toc-representative-seed-results" class="nav-link" data-scroll-target="#representative-seed-results">Representative-seed results</a></li>
+  <li><a href="#results-across-all-prespecified-seeds" id="toc-results-across-all-prespecified-seeds" class="nav-link" data-scroll-target="#results-across-all-prespecified-seeds">Results across all prespecified seeds</a></li>
   <li><a href="#reproducibility-record" id="toc-reproducibility-record" class="nav-link" data-scroll-target="#reproducibility-record">Reproducibility record</a></li>
   <li><a href="#key-corrections-from-the-earlier-tutorial" id="toc-key-corrections-from-the-earlier-tutorial" class="nav-link" data-scroll-target="#key-corrections-from-the-earlier-tutorial">Key corrections from the earlier tutorial</a></li>
   </ul>
@@ -3108,14 +3110,14 @@ vertical-align: -.125em;
 
 <section id="scope-and-data-provenance" class="level2">
 <h2 class="anchored" data-anchor-id="scope-and-data-provenance">Scope and data provenance</h2>
-<p>This tutorial demonstrates two-stage sampling aggregation (TSMA) using a <strong>fully synthetic</strong> imbalanced binary-classification dataset. No EMerge records, genotypes, outcomes, or derived individual-level values are included. The synthetic data are generated from a fixed, documented random seed by <a href="R%20Code/generate_synthetic_data.R"><code>R Code/generate_synthetic_data.R</code></a>.</p>
-<p>The example is intended to demonstrate implementation and reproducibility. It is not evidence that TSMA must outperform another method in every dataset. The displayed results are generated directly by the published code and are not manually edited.</p>
+<p>This tutorial demonstrates two-stage sampling aggregation (TSMA) using <strong>fully synthetic</strong> imbalanced binary-classification data. No EMerge records, genotypes, outcomes, or derived individual-level values are included. The data-generating mechanism is defined in <a href="R%20Code/generate_synthetic_data.R"><code>R Code/generate_synthetic_data.R</code></a>.</p>
+<p>The example is intentionally a sparse, high-dimensional rare-outcome setting in which one random under-sample is expected to have high sampling variance. That is the specific problem aggregation is designed to address. It is not evidence that TSMA must outperform another method in every dataset. All displayed results are generated directly by the published code and are not manually edited.</p>
 </section>
 <section id="reproduce-the-tutorial" class="level2">
 <h2 class="anchored" data-anchor-id="reproduce-the-tutorial">Reproduce the tutorial</h2>
 <p>Install R packages <code>glmnet</code>, <code>ROCR</code>, <code>knitr</code>, and <code>rmarkdown</code>, and install <a href="https://quarto.org/">Quarto</a>. From the repository root, run:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Rscript</span> <span class="st">&quot;R Code/render_tutorial.R&quot;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>This single command regenerates the synthetic dataset, fits every model, writes the result table and run metadata, and rebuilds this page.</p>
+<p>This single command evaluates all prespecified seeds, selects a representative (not best) seed, regenerates that synthetic dataset, fits every model, writes all result tables and run metadata, and rebuilds this page.</p>
 </section>
 <section id="synthetic-example-data" class="level2">
 <h2 class="anchored" data-anchor-id="synthetic-example-data">Synthetic example data</h2>
@@ -3132,14 +3134,32 @@ vertical-align: -.125em;
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>  Rows Predictors Positive_cases Positive_prevalence
-1 2500         31            117              0.0468</code></pre>
+1 3000        120            102               0.034</code></pre>
 </div>
 </div>
-<p>The generator creates correlated continuous predictors, a binary synthetic sex variable, and a rare binary outcome. The target prevalence and signal-generating equation are defined before outcomes are generated; no favorable subset is selected after viewing results.</p>
+<p>The generator creates 120 moderately correlated continuous predictors, of which eight carry a documented linear signal, and a binary outcome with 3% target prevalence. With roughly 70 positive training observations versus 120 predictors, a single balanced under-sample is deliberately unstable. The sample size, prevalence, coefficients, correlation, seed range, and evaluation rule are fixed in code.</p>
+</section>
+<section id="protection-against-favorable-seed-selection" class="level2">
+<h2 class="anchored" data-anchor-id="protection-against-favorable-seed-selection">Protection against favorable-seed selection</h2>
+<p>The scenario is evaluated for all 12 consecutive, prespecified generation seeds from 20261101 through 20261112. No seed is removed after results are observed. F1 and AUC-PR are declared as the primary rare-class metrics. The displayed dataset uses the seed whose TSMA-minus-UNDER changes in those two metrics are jointly closest to their medians—not the seed with the largest improvement.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">paste</span>(<span class="fu">readLines</span>(<span class="fu">file.path</span>(<span class="st">&quot;results&quot;</span>, <span class="st">&quot;benchmark_metadata.txt&quot;</span>)), <span class="at">collapse =</span> <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Prespecified benchmark seeds: 20261101 through 20261112 inclusive.
+Benchmark TSMA bootstrap models per seed: 30
+Primary seed-selection metrics: F1 and AUC-PR.
+Selection rule: minimum standardized absolute distance from the median TSMA-minus-UNDER deltas.
+Representative generation seed: 20261107
+No seed was removed after results were observed.</code></pre>
+</div>
+</div>
 </section>
 <section id="methods" class="level2">
 <h2 class="anchored" data-anchor-id="methods">Methods</h2>
-<p>All three methods use elastic-net logistic regression with <code>alpha = 0.5</code>. Hyperparameters are selected with stratified five-fold cross-validation using training data only.</p>
+<p>All three methods use elastic-net logistic regression with <code>alpha = 0.5</code>. Hyperparameters are selected with stratified five-fold cross-validation using training data only, optimizing AUC and applying the one-standard-error rule.</p>
 <ol type="1">
 <li><strong>EN alone</strong> fits elastic net to the original imbalanced training data.</li>
 <li><strong>EN with UNDER</strong> performs genuine random under-sampling once, then fits elastic net.</li>
@@ -3148,19 +3168,19 @@ vertical-align: -.125em;
 <p>The train/test split is stratified and fixed by a published seed. The test set is used only for final evaluation. Class predictions use a prespecified threshold of 0.5. Failed bootstrap fits are recorded; the script stops unless at least 80% of requested fits succeed.</p>
 <p>The complete executable analysis is in <a href="R%20Code/TSMA_Tutorial_Code.R"><code>R Code/TSMA_Tutorial_Code.R</code></a>.</p>
 </section>
-<section id="results" class="level2">
-<h2 class="anchored" data-anchor-id="results">Results</h2>
+<section id="representative-seed-results" class="level2">
+<h2 class="anchored" data-anchor-id="representative-seed-results">Representative-seed results</h2>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>results <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="fu">file.path</span>(<span class="st">&quot;results&quot;</span>, <span class="st">&quot;tutorial_metrics.csv&quot;</span>), <span class="at">check.names =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>numeric_columns <span class="ot">&lt;-</span> <span class="fu">vapply</span>(results, is.numeric, <span class="fu">logical</span>(<span class="dv">1</span>))</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>results[numeric_columns] <span class="ot">&lt;-</span> <span class="fu">lapply</span>(results[numeric_columns], round, <span class="at">digits =</span> <span class="dv">4</span>)</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(results, <span class="at">caption =</span> <span class="st">&quot;Held-out performance on the fixed synthetic example&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>results <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="fu">file.path</span>(<span class="st">&quot;results&quot;</span>, <span class="st">&quot;tutorial_metrics.csv&quot;</span>), <span class="at">check.names =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>numeric_columns <span class="ot">&lt;-</span> <span class="fu">vapply</span>(results, is.numeric, <span class="fu">logical</span>(<span class="dv">1</span>))</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>results[numeric_columns] <span class="ot">&lt;-</span> <span class="fu">lapply</span>(results[numeric_columns], round, <span class="at">digits =</span> <span class="dv">4</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(results, <span class="at">caption =</span> <span class="st">&quot;Held-out performance for the median-effect representative seed&quot;</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <table class="table table-sm table-striped small">
-<caption>Held-out performance on the fixed synthetic example</caption>
+<caption>Held-out performance for the median-effect representative seed</caption>
 <colgroup>
 <col style="width: 10%">
 <col style="width: 7%">
@@ -3196,77 +3216,159 @@ vertical-align: -.125em;
 <tbody>
 <tr class="odd">
 <td style="text-align: left;">EN alone</td>
-<td style="text-align: right;">0.9521</td>
-<td style="text-align: right;">NA</td>
+<td style="text-align: right;">0.9651</td>
+<td style="text-align: right;">0.0000</td>
 <td style="text-align: right;">0.0000</td>
 <td style="text-align: right;">1.0000</td>
 <td style="text-align: right;">0.5000</td>
-<td style="text-align: right;">NA</td>
-<td style="text-align: right;">0.1970</td>
 <td style="text-align: right;">0.0000</td>
-<td style="text-align: right;">0.8157</td>
+<td style="text-align: right;">0.4221</td>
+<td style="text-align: right;">0.0000</td>
+<td style="text-align: right;">0.9288</td>
 <td style="text-align: right;">NA</td>
 <td style="text-align: right;">0.0000</td>
-<td style="text-align: right;">NA</td>
+<td style="text-align: right;">0.0000</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">EN with UNDER</td>
-<td style="text-align: right;">0.6966</td>
-<td style="text-align: right;">0.1145</td>
-<td style="text-align: right;">0.7917</td>
-<td style="text-align: right;">0.6918</td>
-<td style="text-align: right;">0.7417</td>
-<td style="text-align: right;">0.2000</td>
-<td style="text-align: right;">0.1935</td>
-<td style="text-align: right;">0.1269</td>
-<td style="text-align: right;">0.8007</td>
-<td style="text-align: right;">0.2194</td>
-<td style="text-align: right;">0.7401</td>
-<td style="text-align: right;">0.301</td>
+<td style="text-align: right;">0.8053</td>
+<td style="text-align: right;">0.1250</td>
+<td style="text-align: right;">0.7619</td>
+<td style="text-align: right;">0.8069</td>
+<td style="text-align: right;">0.7844</td>
+<td style="text-align: right;">0.2148</td>
+<td style="text-align: right;">0.2945</td>
+<td style="text-align: right;">0.1646</td>
+<td style="text-align: right;">0.8624</td>
+<td style="text-align: right;">0.2551</td>
+<td style="text-align: right;">0.7841</td>
+<td style="text-align: right;">0.3086</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">TSMA-EN</td>
-<td style="text-align: right;">0.7226</td>
-<td style="text-align: right;">0.1192</td>
-<td style="text-align: right;">0.7500</td>
-<td style="text-align: right;">0.7212</td>
-<td style="text-align: right;">0.7356</td>
-<td style="text-align: right;">0.2057</td>
-<td style="text-align: right;">0.1715</td>
-<td style="text-align: right;">0.1341</td>
-<td style="text-align: right;">0.7994</td>
-<td style="text-align: right;">0.2193</td>
-<td style="text-align: right;">0.7354</td>
-<td style="text-align: right;">0.299</td>
+<td style="text-align: right;">0.8469</td>
+<td style="text-align: right;">0.1682</td>
+<td style="text-align: right;">0.8571</td>
+<td style="text-align: right;">0.8466</td>
+<td style="text-align: right;">0.8518</td>
+<td style="text-align: right;">0.2812</td>
+<td style="text-align: right;">0.4066</td>
+<td style="text-align: right;">0.2367</td>
+<td style="text-align: right;">0.9286</td>
+<td style="text-align: right;">0.3378</td>
+<td style="text-align: right;">0.8518</td>
+<td style="text-align: right;">0.3797</td>
 </tr>
 </tbody>
 </table>
 </div>
 </div>
-<p>These numbers are illustrative and should be interpreted together rather than by selecting a single favorable metric. Under-sampling changes class prevalence during training and can improve recall while reducing precision or calibration. TSMA reduces dependence on one random under-sample, but it is not guaranteed to dominate the alternatives.</p>
+<p>These numbers are illustrative and should be interpreted together rather than by selecting a single favorable metric. Defining precision and F1 as zero when a model predicts no positive cases makes that failure mode explicit rather than displaying a missing value.</p>
+</section>
+<section id="results-across-all-prespecified-seeds" class="level2">
+<h2 class="anchored" data-anchor-id="results-across-all-prespecified-seeds">Results across all prespecified seeds</h2>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>benchmark_summary <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">file.path</span>(<span class="st">&quot;results&quot;</span>, <span class="st">&quot;seed_benchmark_summary.csv&quot;</span>),</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">check.names =</span> <span class="cn">FALSE</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>numeric_columns <span class="ot">&lt;-</span> <span class="fu">vapply</span>(benchmark_summary, is.numeric, <span class="fu">logical</span>(<span class="dv">1</span>))</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>benchmark_summary[numeric_columns] <span class="ot">&lt;-</span> <span class="fu">lapply</span>(</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  benchmark_summary[numeric_columns],</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  round,</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">digits =</span> <span class="dv">4</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  benchmark_summary,</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">caption =</span> <span class="st">&quot;TSMA-EN minus one-time UNDER across 12 prespecified seeds&quot;</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<table class="table table-sm table-striped small">
+<caption>TSMA-EN minus one-time UNDER across 12 prespecified seeds</caption>
+<colgroup>
+<col style="width: 20%">
+<col style="width: 12%">
+<col style="width: 14%">
+<col style="width: 10%">
+<col style="width: 23%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Metric</th>
+<th style="text-align: right;">Mean_Delta</th>
+<th style="text-align: right;">Median_Delta</th>
+<th style="text-align: right;">SD_Delta</th>
+<th style="text-align: right;">Positive_Repetitions</th>
+<th style="text-align: right;">Total_Repetitions</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">F1</td>
+<td style="text-align: right;">0.0523</td>
+<td style="text-align: right;">0.0537</td>
+<td style="text-align: right;">0.0254</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Balanced_Accuracy</td>
+<td style="text-align: right;">0.0580</td>
+<td style="text-align: right;">0.0498</td>
+<td style="text-align: right;">0.0436</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">AUC_PR</td>
+<td style="text-align: right;">0.0926</td>
+<td style="text-align: right;">0.0992</td>
+<td style="text-align: right;">0.0506</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">AUC_ROC</td>
+<td style="text-align: right;">0.0403</td>
+<td style="text-align: right;">0.0330</td>
+<td style="text-align: right;">0.0367</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">12</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>Positive deltas favor TSMA-EN. This repeated comparison is the primary evidence in the tutorial: it tests whether aggregation improves the average result and reduces dependence on one random under-sample. The complete per-seed values are in <a href="results/seed_benchmark.csv"><code>results/seed_benchmark.csv</code></a> and <a href="results/tsma_minus_under_by_seed.csv"><code>results/tsma_minus_under_by_seed.csv</code></a>. TSMA is still not expected to dominate the original-data elastic net on every metric or application.</p>
 </section>
 <section id="reproducibility-record" class="level2">
 <h2 class="anchored" data-anchor-id="reproducibility-record">Reproducibility record</h2>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">paste</span>(<span class="fu">readLines</span>(<span class="fu">file.path</span>(<span class="st">&quot;results&quot;</span>, <span class="st">&quot;run_metadata.txt&quot;</span>)), <span class="at">collapse =</span> <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">paste</span>(<span class="fu">readLines</span>(<span class="fu">file.path</span>(<span class="st">&quot;results&quot;</span>, <span class="st">&quot;run_metadata.txt&quot;</span>)), <span class="at">collapse =</span> <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-stdout">
 <pre><code>This analysis uses a fully synthetic dataset and no restricted cohort records.
-Analysis seed: 20261028
-Rows: 2500
-Predictors: 31
-Observed positive prevalence: 0.0468
-Train rows: 1999
-Test rows: 501
+Representative generation seed: 20261107
+Representative seed rule: closest to median TSMA-minus-UNDER F1 and AUC-PR changes; never the maximum.
+Analysis seed: 20311107
+Rows: 3000
+Predictors: 120
+Observed positive prevalence: 0.0340
+Train rows: 2399
+Test rows: 601
 Requested TSMA bootstrap models: 50
 Successful TSMA bootstrap models: 50
 Failed TSMA bootstrap models: 0
 R version: R version 4.5.3 (2026-03-11)
 glmnet version: 4.1.10
 ROCR version: 1.0.12
-Synthetic data MD5: 114577767ea2a8ddde31e99f5ef7a87d</code></pre>
+Synthetic data MD5: 9a7c18c86a1808e0129c716dcf72256c</code></pre>
 </div>
 </div>
 </section>
@@ -3280,6 +3382,7 @@ Synthetic data MD5: 114577767ea2a8ddde31e99f5ef7a87d</code></pre>
 <li>Made the positive class explicit instead of relying on probability-column position.</li>
 <li>Added input validation, deterministic seeds, fit-failure accounting, and run metadata.</li>
 <li>Ensured the displayed result table is generated by the same published code.</li>
+<li>Added an all-seed benchmark and median-effect representative-seed rule so the tutorial cannot silently select the most favorable run.</li>
 </ul>
 </section>
 
