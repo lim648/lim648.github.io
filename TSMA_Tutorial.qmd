@@ -13,9 +13,9 @@ execute:
 
 ## Scope and data provenance
 
-This tutorial demonstrates two-stage sampling aggregation (TSMA) using a **fully synthetic** imbalanced binary-classification dataset. No EMerge records, genotypes, outcomes, or derived individual-level values are included. The synthetic data are generated from a fixed, documented random seed by [`R Code/generate_synthetic_data.R`](R%20Code/generate_synthetic_data.R).
+This tutorial demonstrates two-stage sampling aggregation (TSMA) using **fully synthetic** imbalanced binary-classification data. No EMerge records, genotypes, outcomes, or derived individual-level values are included. The data-generating mechanism is defined in [`R Code/generate_synthetic_data.R`](R%20Code/generate_synthetic_data.R).
 
-The example is intended to demonstrate implementation and reproducibility. It is not evidence that TSMA must outperform another method in every dataset. The displayed results are generated directly by the published code and are not manually edited.
+The example is intentionally a sparse, high-dimensional rare-outcome setting in which one random under-sample is expected to have high sampling variance. That is the specific problem aggregation is designed to address. It is not evidence that TSMA must outperform another method in every dataset. All displayed results are generated directly by the published code and are not manually edited.
 
 ## Reproduce the tutorial
 
@@ -25,7 +25,7 @@ Install R packages `glmnet`, `ROCR`, `knitr`, and `rmarkdown`, and install [Quar
 Rscript "R Code/render_tutorial.R"
 ```
 
-This single command regenerates the synthetic dataset, fits every model, writes the result table and run metadata, and rebuilds this page.
+This single command evaluates all prespecified seeds, selects a representative (not best) seed, regenerates that synthetic dataset, fits every model, writes all result tables and run metadata, and rebuilds this page.
 
 ## Synthetic example data
 
@@ -39,11 +39,19 @@ data.frame(
 )
 ```
 
-The generator creates correlated continuous predictors, a binary synthetic sex variable, and a rare binary outcome. The target prevalence and signal-generating equation are defined before outcomes are generated; no favorable subset is selected after viewing results.
+The generator creates 120 moderately correlated continuous predictors, of which eight carry a documented linear signal, and a binary outcome with 3% target prevalence. With roughly 70 positive training observations versus 120 predictors, a single balanced under-sample is deliberately unstable. The sample size, prevalence, coefficients, correlation, seed range, and evaluation rule are fixed in code.
+
+## Protection against favorable-seed selection
+
+The scenario is evaluated for all 12 consecutive, prespecified generation seeds from 20261101 through 20261112. No seed is removed after results are observed. F1 and AUC-PR are declared as the primary rare-class metrics. The displayed dataset uses the seed whose TSMA-minus-UNDER changes in those two metrics are jointly closest to their medians—not the seed with the largest improvement.
+
+```{r}
+cat(paste(readLines(file.path("results", "benchmark_metadata.txt")), collapse = "\n"))
+```
 
 ## Methods
 
-All three methods use elastic-net logistic regression with `alpha = 0.5`. Hyperparameters are selected with stratified five-fold cross-validation using training data only.
+All three methods use elastic-net logistic regression with `alpha = 0.5`. Hyperparameters are selected with stratified five-fold cross-validation using training data only, optimizing AUC and applying the one-standard-error rule.
 
 1. **EN alone** fits elastic net to the original imbalanced training data.
 2. **EN with UNDER** performs genuine random under-sampling once, then fits elastic net.
@@ -53,16 +61,37 @@ The train/test split is stratified and fixed by a published seed. The test set i
 
 The complete executable analysis is in [`R Code/TSMA_Tutorial_Code.R`](R%20Code/TSMA_Tutorial_Code.R).
 
-## Results
+## Representative-seed results
 
 ```{r}
 results <- read.csv(file.path("results", "tutorial_metrics.csv"), check.names = FALSE)
 numeric_columns <- vapply(results, is.numeric, logical(1))
 results[numeric_columns] <- lapply(results[numeric_columns], round, digits = 4)
-knitr::kable(results, caption = "Held-out performance on the fixed synthetic example")
+knitr::kable(results, caption = "Held-out performance for the median-effect representative seed")
 ```
 
-These numbers are illustrative and should be interpreted together rather than by selecting a single favorable metric. Under-sampling changes class prevalence during training and can improve recall while reducing precision or calibration. TSMA reduces dependence on one random under-sample, but it is not guaranteed to dominate the alternatives.
+These numbers are illustrative and should be interpreted together rather than by selecting a single favorable metric. Defining precision and F1 as zero when a model predicts no positive cases makes that failure mode explicit rather than displaying a missing value.
+
+## Results across all prespecified seeds
+
+```{r}
+benchmark_summary <- read.csv(
+  file.path("results", "seed_benchmark_summary.csv"),
+  check.names = FALSE
+)
+numeric_columns <- vapply(benchmark_summary, is.numeric, logical(1))
+benchmark_summary[numeric_columns] <- lapply(
+  benchmark_summary[numeric_columns],
+  round,
+  digits = 4
+)
+knitr::kable(
+  benchmark_summary,
+  caption = "TSMA-EN minus one-time UNDER across 12 prespecified seeds"
+)
+```
+
+Positive deltas favor TSMA-EN. This repeated comparison is the primary evidence in the tutorial: it tests whether aggregation improves the average result and reduces dependence on one random under-sample. The complete per-seed values are in [`results/seed_benchmark.csv`](results/seed_benchmark.csv) and [`results/tsma_minus_under_by_seed.csv`](results/tsma_minus_under_by_seed.csv). TSMA is still not expected to dominate the original-data elastic net on every metric or application.
 
 ## Reproducibility record
 
@@ -79,3 +108,4 @@ cat(paste(readLines(file.path("results", "run_metadata.txt")), collapse = "\n"))
 - Made the positive class explicit instead of relying on probability-column position.
 - Added input validation, deterministic seeds, fit-failure accounting, and run metadata.
 - Ensured the displayed result table is generated by the same published code.
+- Added an all-seed benchmark and median-effect representative-seed rule so the tutorial cannot silently select the most favorable run.

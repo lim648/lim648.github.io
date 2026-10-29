@@ -8,11 +8,11 @@ run_or_stop <- function(command, arguments) {
 }
 
 rscript <- file.path(R.home("bin"), "Rscript")
-run_or_stop(rscript, shQuote(file.path("R Code", "generate_synthetic_data.R")))
+run_or_stop(rscript, shQuote(file.path("R Code", "benchmark_tsma.R")))
 run_or_stop(rscript, shQuote(file.path("R Code", "TSMA_Tutorial_Code.R")))
 run_or_stop(
   "quarto",
   c("render", shQuote("TSMA_Tutorial.qmd"), "--output", shQuote("TSMA_Tutorial.html"))
 )
 
-cat("Tutorial data, results, and HTML were regenerated successfully.\n")
+cat("Benchmark, representative data, results, and HTML were regenerated successfully.\n")
